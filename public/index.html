@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAI - 스마트 진단 & 로그인</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="logo">Medi<span>AI</span></div>
+      <p id="userStatus" class="subtitle">지능형 진단 보조 도구</p>
+      <button id="logoutBtn" class="hidden small-btn">로그아웃</button>
+    </header>
+
+    <main>
+      <!-- 로그인/회원가입 섹션 -->
+      <section id="authSection" class="card">
+        <div class="auth-tabs">
+          <button id="loginTab" class="tab active">로그인</button>
+          <button id="signupTab" class="tab">회원가입</button>
+        </div>
+        
+        <form id="authForm" class="auth-form">
+          <input type="email" id="emailInput" placeholder="이메일 주소" required>
+          <input type="password" id="passwordInput" placeholder="비밀번호" required>
+          <button type="submit" id="authSubmitBtn">로그인</button>
+        </form>
+        <p id="authError" class="error-text hidden"></p>
+      </section>
+
+      <!-- 메인 서비스 섹션 (로그인 후 표시) -->
+      <div id="mainApp" class="hidden">
+        <section class="input-section">
+          <label for="symptomInput">어떤 증상이 있으신가요?</label>
+          <textarea id="symptomInput" placeholder="예: 어제부터 왼쪽 뒷머리가 찌릿찌릿하게 아파요." rows="5"></textarea>
+          <button id="diagnoseBtn">AI 분석 시작</button>
+        </section>
+
+        <section id="resultSection" class="result-section hidden">
+          <div class="card">
+            <h3><span class="icon">🔍</span> AI 분석 결과</h3>
+            <div id="aiResult" class="content"></div>
+            <div class="disclaimer">※ 본 결과는 참고용이며, 반드시 전문의와 상담하십시오.</div>
+          </div>
+        </section>
+
+        <section class="history-section">
+          <h3><span class="icon">📜</span> 나의 진단 기록</h3>
+          <ul id="historyList">
+            <li class="loading">기록을 불러오는 중...</li>
+          </ul>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 MediAI Service. Powered by Firebase Auth.</p>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

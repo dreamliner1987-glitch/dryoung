@@ -1,0 +1,23 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: 'Arial', sans-serif;
+  background: #000; /* fallback dark background */
+}
+
+#gameCanvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background: url('assets/space_background.png') no-repeat center center;
+  background-size: cover;
+}
+
+#score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #fff;
+  font-size: 24px;
+  z-index: 10;
+}

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAI - 통합 진단 서비스</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #00d2ff;
+      --secondary: #3a7bd5;
+      --bg-dark: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.8);
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+    }
+    body {
+      margin: 0; padding: 20px;
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      background: radial-gradient(circle at top right, #1e293b, #0f172a);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex; justify-content: center;
+    }
+    .app-container { width: 100%; max-width: 550px; }
+    header { text-align: center; margin-bottom: 30px; }
+    .logo { font-size: 2.5rem; font-weight: 700; }
+    .logo span { color: var(--primary); }
+    .card {
+      background: var(--card-bg);
+      border-radius: 20px; padding: 30px;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .auth-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab {
+      flex: 1; padding: 12px; border: none; border-radius: 10px;
+      background: rgba(255,255,255,0.05); color: var(--text-dim);
+      cursor: pointer; font-weight: 600; transition: 0.3s;
+    }
+    .tab.active { background: var(--primary); color: white; }
+    input, textarea {
+      width: 100%; padding: 15px; margin-bottom: 15px;
+      border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05); color: white;
+      box-sizing: border-box; font-size: 1rem;
+    }
+    button.main-btn {
+      width: 100%; padding: 15px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white; font-size: 1.1rem; font-weight: 700; cursor: pointer;
+    }
+    .history-item {
+      background: rgba(255,255,255,0.03); padding: 15px;
+      border-radius: 12px; margin-top: 10px; border-left: 4px solid var(--primary);
+    }
+    .hidden { display: none !important; }
+    .error { color: #f87171; font-size: 0.9rem; text-align: center; margin-top: 10px; }
+    .logout-link { color: var(--text-dim); cursor: pointer; font-size: 0.8rem; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="logo">Medi<span>AI</span></div>
+      <p id="statusTxt" class="subtitle">지능형 진단 보조 서비스</p>
+      <span id="logoutBtn" class="logout-link hidden">로그아웃</span>
+    </header>
+
+    <!-- 1. 인증 섹션 -->
+    <section id="authSection" class="card">
+      <div class="auth-tabs">
+        <button id="loginTab" class="tab active">로그인</button>
+        <button id="signupTab" class="tab">회원가입</button>
+      </div>
+      <form id="authForm">
+        <input type="email" id="email" placeholder="이메일" required>
+        <input type="password" id="pw" placeholder="비밀번호" required>
+        <button type="submit" id="submitBtn" class="main-btn">로그인</button>
+      </form>
+      <p id="authErr" class="error hidden"></p>
+    </section>
+
+    <!-- 2. 진단 메인 섹션 -->
+    <div id="mainApp" class="hidden">
+      <section class="card">
+        <textarea id="symptom" placeholder="현재 겪고 계신 증상을 자세히 적어주세요." rows="5"></textarea>
+        <button id="diagBtn" class="main-btn">AI 분석 시작</button>
+        <div id="resultBox" class="hidden" style="margin-top:20px; border-top:1px solid #444; pt:20px;">
+          <h4 style="color:var(--primary)">🔍 AI 분석 결과</h4>
+          <p id="resultTxt" style="line-height:1.6"></p>
+        </div>
+      </section>
+
+      <section style="margin-top:30px">
+        <h3>📜 나의 진단 기록</h3>
+        <div id="historyList"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Firebase & Logic -->
+  <script type="module">
+    import { checkAuthState, logout, auth } from "./auth-service.js";
+    import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const db = getFirestore(); // auth-service에서 이미 초기화된 app을 사용함
+
+    // --- 필수 변수 선언 ---
+    let geminiKey = localStorage.getItem('geminiApiKey') || "";
+    let availableModels = [];
+
+    // --- Gemini API 키 설정 (.env 자동 로드 시도) ---
+    async function loadApiKey() {
+      try {
+        const res = await fetch('.env?t=' + Date.now());
+        if (res.ok) {
+          const text = await res.text();
+          const match = text.match(/GEMINI_API_KEY=(.*)/);
+          if (match && match[1]) {
+            const newKey = match[1].trim();
+            if (newKey && newKey !== "YOUR_API_KEY") {
+              geminiKey = newKey;
+              localStorage.setItem('geminiApiKey', geminiKey);
+            }
+          }
+        }
+      } catch (e) {
+        console.log("환경 변수 로드 실패");
+      }
+      
+      // 키가 있으면 모델 목록은 백그라운드에서 조용히 가져옵니다.
+      if (geminiKey && geminiKey !== "YOUR_API_KEY") {
+          listAvailableModels();
+      }
+    }
+
+    async function listAvailableModels() {
+        if (!geminiKey) return;
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+            const data = await res.json();
+            if (data.models) {
+                availableModels = data.models
+                    .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+                    .map(m => m.name.replace("models/", ""));
+            }
+        } catch (e) {}
+    }
+    loadApiKey();
+
+    // --- UI 요소 ---
+    const mainApp = document.getElementById('mainApp');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const statusTxt = document.getElementById('statusTxt');
+    
+    checkAuthState((user) => {
+        mainApp.classList.remove('hidden');
+        logoutBtn.classList.remove('hidden');
+        statusTxt.innerHTML = `${user.email.split('@')[0]}님 <span style="font-weight:400; font-size:0.9rem; color:var(--text-dim)">분석을 시작하세요</span>`;
+        loadHistory(user.uid);
+    });
+
+    logoutBtn.onclick = () => logout();
+
+    // 진단 실행
+    document.getElementById('diagBtn').onclick = async () => {
+      const sym = document.getElementById('symptom').value.trim();
+      if (!sym) return alert("증상을 입력하세요.");
+      
+      const btn = document.getElementById('diagBtn');
+      btn.disabled = true; btn.innerText = "분석 중...";
+
+      // 전체 작업에 대한 30초 타임아웃 설정
+      const overallController = new AbortController();
+      const overallTimeout = setTimeout(() => overallController.abort(), 30000);
+
+      try {
+        const modelsToTry = availableModels.length > 0 ? availableModels : ["gemini-1.5-flash", "gemini-pro"];
+        let lastError = "응답이 없습니다.";
+
+        for (const modelName of modelsToTry) {
+          try {
+            if (!geminiKey) throw new Error("API 키가 없습니다.");
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: `다음 증상을 분석하여 한글로 진단과 조언을 해줘: ${sym}` }] }] }),
+              signal: overallController.signal
+            });
+            
+            const data = await response.json();
+            if (data.error) {
+                lastError = data.error.message;
+                continue;
+            }
+
+            if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
+                const result = data.candidates[0].content.parts[0].text;
+                
+                // 1. 화면에 즉시 결과 표시 (가장 먼저 수행)
+                document.getElementById('resultTxt').innerText = result;
+                document.getElementById('resultBox').classList.remove('hidden');
+
+                // 2. 기록 저장은 백그라운드에서 조용히 수행 (기다리지 않음)
+                addDoc(collection(db, "diagnoses"), {
+                  uid: auth.currentUser.uid,
+                  symptom: sym,
+                  diagnosis: result,
+                  timestamp: serverTimestamp()
+                }).catch(err => console.error("기록 저장 실패:", err));
+
+                clearTimeout(overallTimeout);
+                return; // 성공 시 함수 종료
+            }
+          } catch (e) {
+            lastError = e.name === "AbortError" ? "시간 초과" : e.message;
+            if (e.name === "AbortError") break; // 타임아웃 시 중단
+          }
+        }
+        alert("분석 실패: " + lastError);
+      } finally {
+        clearTimeout(overallTimeout);
+        btn.disabled = false; 
+        btn.innerText = "AI 분석 시작";
+      }
+    };
+
+    // 기록 불러오기
+    function loadHistory(uid) {
+      const list = document.getElementById('historyList');
+      const q = query(collection(db, "diagnoses"), where("uid", "==", uid), orderBy("timestamp", "desc"));
+      onSnapshot(q, (snapshot) => {
+        list.innerHTML = "";
+        snapshot.forEach(doc => {
+          const d = doc.data();
+          const div = document.createElement('div');
+          div.className = "history-item";
+          div.innerHTML = `<small>${d.timestamp?.toDate().toLocaleString() || "저장 중"}</small><br><strong>증상:</strong> ${d.symptom.substring(0,20)}...<br><strong>AI 의견:</strong> ${d.diagnosis.substring(0,50)}...`;
+          list.appendChild(div);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

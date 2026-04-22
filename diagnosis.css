@@ -1,0 +1,62 @@
+/* diagnosis.css */
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #0d0d0d, #1a1a2e);
+  color: #ececec;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.container {
+  background: rgba(255,255,255,0.06);
+  padding: 2.5rem 3rem;
+  border-radius: 1rem;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  max-width: 500px;
+  width: 90%;
+}
+h1 {
+  font-size: 2.4rem;
+  color: #ffeb3b;
+  margin-bottom: 1rem;
+}
+textarea {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 0.5rem;
+  background: rgba(255,255,255,0.07);
+  color: #fff;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 1rem;
+}
+button {
+  width: 100%;
+  padding: 0.9rem;
+  font-size: 1rem;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  backdrop-filter: blur(8px);
+}
+button:hover { background: rgba(255,255,255,0.2); }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+.result, .error {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+.result { background: rgba(0,150,136,0.15); }
+.error { background: rgba(255,69,0,0.2); color: #ffeb3b; }
+.hidden { display: none; }
+@media (max-width: 480px) {
+  h1 { font-size: 2rem; }
+  textarea, button { font-size: 0.9rem; }
+}
