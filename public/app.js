@@ -124,8 +124,22 @@ function loadHistory(uid) {
 }
 
 // --- 진단 기능 (Gemini API) ---
-const GEMINI_API_KEY = localStorage.getItem('geminiApiKey') || "";
-// (키 입력 로직은 이전과 동일하므로 생략하거나 기존 로직 유지)
+let geminiKey = localStorage.getItem('geminiApiKey') || "";
+let availableModels = [];
+
+async function loadModels() {
+    if (!geminiKey) return;
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`);
+        const data = await res.json();
+        if (data.models) {
+            availableModels = data.models
+                .filter(m => m.supportedGenerationMethods.includes("generateContent"))
+                .map(m => m.name.replace("models/", ""));
+        }
+    } catch (e) {}
+}
+loadModels();
 
 const diagnoseBtn = document.getElementById('diagnoseBtn');
 const symptomInput = document.getElementById('symptomInput');
@@ -136,33 +150,69 @@ diagnoseBtn.addEventListener('click', async () => {
     const symptom = symptomInput.value.trim();
     if (!symptom || !currentUser) return;
 
+    if (!geminiKey) {
+        const inputKey = prompt("Gemini API 키가 필요합니다. 본인의 API 키를 입력해주세요:");
+        if (inputKey) {
+            geminiKey = inputKey.trim();
+            localStorage.setItem('geminiApiKey', geminiKey);
+            await loadModels();
+        } else {
+            return;
+        }
+    }
+
     diagnoseBtn.disabled = true;
     diagnoseBtn.innerText = "분석 중...";
     resultSection.classList.remove('hidden');
 
-    try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`;
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: `증상 분석 및 진단: ${symptom}` }] }]
-            })
-        });
-        const data = await response.json();
-        const result = data.candidates[0].content.parts[0].text;
-        aiResult.innerText = result;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
-        // DB에 내 아이디와 함께 저장
-        await addDoc(collection(db, "diagnoses"), {
-            userId: currentUser.uid,
-            symptom: symptom,
-            diagnosis: result,
-            timestamp: serverTimestamp()
-        });
-    } catch (e) {
-        aiResult.innerText = "오류 발생: " + e.message;
+    try {
+        const modelsToTry = availableModels.length > 0 ? availableModels : ["gemini-1.5-flash", "gemini-pro"];
+        let lastError = "응답이 없습니다.";
+
+        for (const modelName of modelsToTry) {
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `다음 증상을 분석하여 한글로 진단과 조언을 해줘: ${symptom}` }] }] }),
+                    signal: controller.signal
+                });
+                
+                const data = await response.json();
+                if (data.error) {
+                    lastError = data.error.message;
+                    continue;
+                }
+
+                if (data.candidates && data.candidates.length > 0) {
+                    const candidate = data.candidates[0];
+                    if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
+                        const result = candidate.content.parts[0].text;
+                        aiResult.innerText = result;
+
+                        // 비동기 저장
+                        addDoc(collection(db, "diagnoses"), {
+                            userId: currentUser.uid,
+                            symptom: symptom,
+                            diagnosis: result,
+                            timestamp: serverTimestamp()
+                        }).catch(e => console.error("저장 실패:", e));
+
+                        clearTimeout(timeout);
+                        return;
+                    }
+                }
+            } catch (err) {
+                lastError = err.name === "AbortError" ? "시간 초과" : err.message;
+                if (err.name === "AbortError") break;
+            }
+        }
+        aiResult.innerText = "분석 실패: " + lastError;
     } finally {
+        clearTimeout(timeout);
         diagnoseBtn.disabled = false;
         diagnoseBtn.innerText = "AI 분석 시작";
     }
