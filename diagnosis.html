@@ -127,15 +127,28 @@
               localStorage.setItem('geminiApiKey', geminiKey);
             }
           }
+        } else {
+            console.warn(".env 파일을 찾을 수 없습니다. (Vercel 등 배포 환경)");
         }
       } catch (e) {
-        console.log("환경 변수 로드 실패");
+        console.error("환경 변수 로드 중 오류:", e);
       }
       
-      // 키가 있으면 모델 목록은 백그라운드에서 조용히 가져옵니다.
-      if (geminiKey && geminiKey !== "YOUR_API_KEY") {
-          listAvailableModels();
+      // 키가 없으면 저장된 값 확인
+      if (!geminiKey || geminiKey === "YOUR_API_KEY") {
+          geminiKey = localStorage.getItem('geminiApiKey') || "";
       }
+
+      // 여전히 키가 없으면 사용자에게 요청 (이 팝업이 떠야 정상입니다)
+      if (!geminiKey || geminiKey === "YOUR_API_KEY") {
+          const inputKey = prompt("Gemini API 키가 필요합니다. 본인의 API 키를 입력해주세요:");
+          if (inputKey) {
+              geminiKey = inputKey.trim();
+              localStorage.setItem('geminiApiKey', geminiKey);
+          }
+      }
+
+      if (geminiKey) listAvailableModels();
     }
 
     async function listAvailableModels() {
